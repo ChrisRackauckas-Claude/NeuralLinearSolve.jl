@@ -9,6 +9,24 @@ const _MODEL_PATH = joinpath(@__DIR__, "..", "artifacts", "solver_model_cnn.jld2
 const _MODEL = Ref{Any}(nothing)
 const _LABELS = Ref{Vector{String}}(String[])
 
+function _build_model()
+    return Flux.Chain(
+        Flux.Conv((3, 3), 1 => 16, NNlib.relu; pad = 1, init = Flux.zeros32),
+        Flux.MaxPool((2, 2)),
+        Flux.Conv((3, 3), 16 => 32, NNlib.relu; pad = 1, init = Flux.zeros32),
+        Flux.MaxPool((2, 2)),
+        Flux.Conv((3, 3), 32 => 64, NNlib.relu; pad = 1, init = Flux.zeros32),
+        Flux.MaxPool((2, 2)),
+        Flux.flatten,
+        Flux.Dense(4096 => 256, NNlib.relu; init = Flux.zeros32),
+        Flux.Dropout(0.5),
+        Flux.Dense(256 => 64, NNlib.relu; init = Flux.zeros32),
+        Flux.Dropout(0.3),
+        Flux.Dense(64 => 3; init = Flux.zeros32),
+        NNlib.softmax
+    )
+end
+
 
 function _load_model!()
     # Loads the bundled model on the first call. Subsequent calls use the cached model.
@@ -24,7 +42,9 @@ function _load_model!()
             )
         end
         model_data = JLD2.load(_MODEL_PATH)
-        _MODEL[] = model_data["model_cpu"]
+        model = _build_model()
+        Flux.loadmodel!(model, model_data["model_state"])
+        _MODEL[] = model
         _LABELS[] = model_data["label_names"]
     end
 end
